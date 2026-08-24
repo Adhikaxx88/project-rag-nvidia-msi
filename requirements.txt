@@ -1,0 +1,32 @@
+# Install ini di venv NATIVE Windows (bukan di dalam Docker) -- lihat README.
+# PENTING soal torch: baris di bawah menginstall build CPU secara default lewat
+# PyPI. Untuk pakai GPU NVIDIA (CUDA), install torch LEBIH DULU dari index
+# resmi PyTorch sebelum menjalankan `pip install -r requirements.txt`, contoh
+# untuk CUDA 12.1:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+# lalu baru jalankan `pip install -r requirements.txt` (pip tidak akan
+# menimpa torch yang sudah terpasang kalau versinya sudah memenuhi constraint).
+
+# --- Ingestion ---
+feedparser==6.0.14
+newspaper3k==0.2.8
+lxml_html_clean==0.4.5
+googlenewsdecoder==0.1.7
+
+# --- Vectorization (dense + sparse embedding, Qdrant client) ---
+torch>=2.2
+sentence-transformers==5.7.0
+fastembed==0.8.0
+qdrant-client==1.19.0
+
+# --- FastAPI (vectorization bridge service + ui/api.py) ---
+fastapi==0.141.1
+uvicorn[standard]>=0.30.0
+
+# --- LLM (Ollama client) ---
+ollama==0.6.2
+
+# --- Shared ---
+python-dotenv>=1.0.1
+requests>=2.32.3
+pydantic>=2.7.4

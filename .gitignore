@@ -1,0 +1,16 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.streamlit/
+data/raw/*.json
+data/processed/*.json
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+logs/
+*.log
+*_log.txt
+
+# Scratch/test JSON output di root (data hasil pipeline yang sah tetap di data/raw|processed/)
+/*.json

@@ -1,0 +1,99 @@
+x-airflow-common: &airflow-common
+  build:
+    context: ./docker/airflow
+    dockerfile: Dockerfile
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/orchestration/dags
+    PYTHONPATH: /opt/airflow/project
+    VECTOR_SERVICE_URL: ${VECTOR_SERVICE_URL:-http://host.docker.internal:8600}
+    QDRANT_HOST: ${QDRANT_HOST:-host.docker.internal}
+    QDRANT_PORT: ${QDRANT_PORT:-6333}
+  volumes:
+    - .:/opt/airflow/project
+    - airflow_logs:/opt/airflow/logs
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
+services:
+  # --- Vector DB (Hybrid RAG store: dense + BM25 sparse, hybrid search via RRF) ---
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant_fed_news
+    restart: unless-stopped
+    ports:
+      - "6333:6333" # REST API (dipakai oleh vectorization service & Streamlit UI native di host)
+      - "6334:6334" # gRPC API
+    volumes:
+      - qdrant_storage:/qdrant/storage # persist walau container dihapus/restart
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+
+  # --- Airflow metadata DB ---
+  postgres:
+    image: postgres:15
+    container_name: airflow_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- One-off: migrate DB + create default admin user (admin/admin) ---
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow_init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true
+    restart: on-failure
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow_webserver
+    command: webserver
+    ports:
+      - "8081:8080"
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # LocalExecutor: scheduler juga yang mengeksekusi task (tidak perlu worker terpisah)
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow_scheduler
+    command: scheduler
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+    driver: local
+  postgres_data:
+    driver: local
+  airflow_logs:
+    driver: local
