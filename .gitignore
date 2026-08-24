@@ -14,3 +14,8 @@ logs/
 
 # Scratch/test JSON output di root (data hasil pipeline yang sah tetap di data/raw|processed/)
 /*.json
+
+# Frontend (ui/frontend/, React+TS+Vite) -- build artifact & installed deps,
+# di-generate ulang lewat `npm install` + `npm run build` (lihat README).
+node_modules/
+ui/frontend/dist/

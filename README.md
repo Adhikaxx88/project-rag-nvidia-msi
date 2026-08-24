@@ -41,7 +41,8 @@ ingestion/          config.py (topik+UA), scraper.py, cleaner.py
 vectorization/       chunker.py, embedder.py (BGE+BM25), qdrant_store.py, service.py (bridge)
 llm/                 retriever.py (hybrid RRF), prompts.py, generator.py (Ollama), rag_pipeline.py
 orchestration/dags/  news_rag_pipeline_dag.py (Airflow DAG)
-ui/                  api.py (FastAPI, aktif) + static/index.html (frontend)
+ui/                  api.py (FastAPI, aktif — serve /ask + hasil build frontend)
+                     frontend/  React + TypeScript + Vite (source UI aktif)
                      app.py — LEGACY, sudah tidak dipakai (lihat catatan migrasi di bawah)
 docker/
   airflow/           Dockerfile, requirements-airflow.txt, docker-compose.yml (modular)
@@ -54,13 +55,21 @@ data/processed/      output cleaner (JSON setelah cleaning, siap divectorize)
 ## Prasyarat
 
 - Windows 10/11 + Docker Desktop (WSL2 backend) — untuk Qdrant & Airflow.
-- Python 3.11 (native, di luar Docker) — untuk vectorization service, UI, dan
-  testing manual.
+- Python 3.11 (native, di luar Docker) — untuk vectorization service, UI backend, dan
+  testing manual. Environment manager bebas (`venv` atau `conda`) — contoh di README ini
+  pakai `venv`; kalau pakai conda, ganti langkah aktivasi environment dengan
+  `conda activate <nama-env-anda>` (mis. `rtx-news-rag`).
 - NVIDIA GPU + driver terpasang (untuk CUDA). Kalau CUDA tidak terdeteksi, semua
   script otomatis fallback ke CPU (lebih lambat, tapi tetap jalan).
 - [Ollama for Windows](https://ollama.com/download) — LLM lokal.
+- **Node.js 18+** (disarankan versi LTS terbaru) + npm — untuk build frontend
+  React di `ui/frontend/`. Cek versi: `node --version`.
 
 ## Setup dari nol
+
+Langkah-langkah ini **satu kali saja** (atau tiap kali dependency/kode berubah) —
+bukan yang dijalankan tiap mau pakai. Untuk urutan menjalankan sehari-hari, lihat
+bagian [Cara menjalankan](#cara-menjalankan) di bawah.
 
 ### 1. Clone & virtual environment
 
@@ -70,7 +79,11 @@ python -m venv .venv
 .venv\Scripts\activate
 ```
 
-### 2. Install dependencies (native venv)
+> Pakai conda? `conda create -n rtx-news-rag python=3.11` lalu
+> `conda activate rtx-news-rag`, lanjutkan langkah 2 seperti biasa (environment
+> manager tidak mempengaruhi langkah-langkah setelah ini).
+
+### 2. Install dependencies (native venv/conda)
 
 Install PyTorch versi CUDA **dulu** (sesuaikan `cu121` dengan versi CUDA driver
 Anda, cek di [pytorch.org](https://pytorch.org/get-started/locally/)):
@@ -95,16 +108,100 @@ copy .env.example .env
 Default sudah siap pakai untuk setup lokal Windows; edit kalau port bentrok dengan
 service lain di mesin Anda.
 
-### 4. Install & pull model Ollama
+### 4. Install model Ollama
 
 ```powershell
 ollama pull llama3
-ollama serve   # biasanya sudah auto-run sebagai service setelah install
 ```
 
-Cek jalan: `curl http://localhost:11434/api/tags` harus menampilkan `llama3`.
+(Ini cuma download model sekali — menjalankan Ollama server-nya ada di bagian
+"Cara menjalankan" di bawah, karena itu perlu dilakukan tiap sesi, bukan sekali saja.)
 
-### 5. Jalankan Qdrant + Airflow (Docker)
+### 5. Build frontend (React + TypeScript + Vite)
+
+```powershell
+cd ui/frontend
+npm install
+npm run build
+cd ../..
+```
+
+Hasil build ada di `ui/frontend/dist/` — inilah yang di-serve `ui/api.py` di route
+`/`. Ulangi `npm run build` tiap kali Anda mengubah kode di `ui/frontend/src/`.
+
+## Cara menjalankan
+
+Ada **dua alur terpisah**, tergantung tujuan Anda:
+
+- **Quick start** — kalau cuma mau **tanya-jawab** lewat UI (kasus paling umum,
+  termasuk demo). Tidak perlu Airflow, tidak perlu bridge service.
+- **Full setup** — kalau mau **scraping berita baru** ke Qdrant (lewat Airflow DAG
+  terjadwal atau manual). Butuh semua service.
+
+> **Poin penting yang sempat bikin bingung saat development:** proses
+> `uvicorn ui.api:app` **sendirian** sudah otomatis meng-handle loading dense model
+> (BGE, jalan di GPU kalau ada CUDA), sparse model (BM25, CPU), koneksi ke Qdrant,
+> DAN koneksi ke Ollama — semua di dalam satu proses Python yang sama (lihat
+> `llm/retriever.py` dan `vectorization/embedder.py`, yang di-import langsung oleh
+> `ui/api.py` lewat `llm/rag_pipeline.py`). **Anda TIDAK perlu menjalankan
+> `vectorization/service.py` untuk sekadar chat/tanya-jawab.** File itu
+> (`vectorization/service.py`, port 8600) HANYA dipakai sebagai *bridge* saat
+> Airflow container melakukan scraping+vectorize artikel baru (task `vectorize_news`
+> di DAG) — di luar konteks itu, file tersebut tidak perlu jalan sama sekali.
+
+### A. Quick start — tanya-jawab saja
+
+Prasyarat: langkah "Setup dari nol" di atas sudah pernah dilakukan (dependency
+terinstall, `.env` ada, model Ollama sudah di-pull, frontend sudah di-build).
+
+**1. Pastikan Qdrant jalan.** Kalau belum pernah setup sama sekali:
+
+```powershell
+docker compose up -d
+```
+
+Kalau Qdrant sudah pernah di-setup dan cuma perlu start ulang container yang sudah
+ada (lebih cepat, tidak perlu `--build`), atau Anda hanya butuh Qdrant tanpa
+Airflow sama sekali:
+
+```powershell
+docker compose -f docker/qdrant/docker-compose.yml up -d
+```
+
+**2. Pastikan Ollama jalan.**
+
+```powershell
+curl http://localhost:11434/api/tags
+```
+
+Kalau responnya gagal connect (`curl: (7) Failed to connect`), Ollama belum
+jalan — buka terminal terpisah, jalankan, dan **biarkan tetap terbuka**:
+
+```powershell
+ollama serve
+```
+
+Ulangi `curl` di atas sampai muncul daftar model termasuk `llama3`.
+
+**3. Aktifkan environment Python, lalu jalankan backend UI.**
+
+```powershell
+.venv\Scripts\activate
+:: atau kalau pakai conda: conda activate rtx-news-rag
+
+uvicorn ui.api:app --host 0.0.0.0 --port 8502
+```
+
+**4. Buka http://localhost:8502** — tanya soal Fed rate / macro economy. Selesai;
+tidak ada langkah lain yang diperlukan untuk alur ini.
+
+### B. Full setup — scraping berita baru
+
+Butuh semua service: Qdrant, Airflow, DAN vectorization bridge service (beda dari
+alur A di atas, karena di sini embedding artikel baru dilakukan lewat Airflow yang
+jalan di container tanpa akses GPU — lihat diagram di bagian Arsitektur).
+
+**1. Jalankan Qdrant + Airflow (Docker)**
 
 ```powershell
 docker compose up -d --build
@@ -120,9 +217,10 @@ Login Airflow UI di http://localhost:8081 dengan **admin / admin**.
 > dan `docker compose -f docker/airflow/docker-compose.yml up -d --build` — keduanya
 > independen, tidak saling bergantung secara network.
 
-### 6. Jalankan vectorization bridge service (native, GPU)
+**2. Jalankan vectorization bridge service (native, GPU)**
 
-Di terminal terpisah (venv aktif), **wajib jalan sebelum trigger DAG**:
+Di terminal terpisah (venv/conda aktif), **wajib jalan sebelum trigger DAG** — ini
+yang membedakan alur ini dari Quick Start di atas:
 
 ```powershell
 uvicorn vectorization.service:app --host 0.0.0.0 --port 8600
@@ -130,7 +228,7 @@ uvicorn vectorization.service:app --host 0.0.0.0 --port 8600
 
 Cek: `curl http://localhost:8600/health` → `{"status":"ok","cuda_available":true}`.
 
-### 7. Jalankan DAG
+**3. Jalankan DAG**
 
 Di Airflow UI, unpause & trigger DAG **`news_rag_pipeline`** (jadwal default: tiap 6
 jam, `catchup=False`). DAG akan: scrape Google News → clean → POST ke vectorization
@@ -144,22 +242,38 @@ python -m ingestion.cleaner
 python -m vectorization.qdrant_store data/processed/<nama_file_hasil_cleaner>.json
 ```
 
-### 8. Jalankan UI (FastAPI)
+Setelah artikel baru masuk ke Qdrant, kembali ke alur **Quick start (A)** di atas
+untuk tanya-jawab menggunakan data terbaru — bridge service (`vectorization/service.py`)
+boleh dimatikan lagi setelah ingestion selesai, tidak perlu terus jalan.
+
+### Development frontend (hot-reload)
+
+Kalau mau edit UI React dan lihat perubahannya langsung tanpa `npm run build`
+berulang kali, jalankan di dua terminal terpisah:
 
 ```powershell
+# Terminal A -- backend (sama seperti Quick start langkah 3)
 uvicorn ui.api:app --host 0.0.0.0 --port 8502
+
+# Terminal B -- frontend dev server (hot reload)
+cd ui/frontend
+npm run dev
 ```
 
-Buka http://localhost:8502, tanya soal Fed rate / macro economy — jawaban akan
-menyertakan klasifikasi sentimen (kalau relevan) dan daftar sumber berita (judul,
-link, tanggal terbit) di bawah tiap jawaban.
+Buka http://localhost:5173 (Vite dev server) selama development — bukan :8502.
+`vite.config.ts` sudah dikonfigurasi supaya request `/ask` dari dev server
+di-proxy otomatis ke backend `:8502`, jadi tidak ada masalah CORS. Setelah
+selesai edit, `npm run build` lagi supaya `:8502` (mode production) ikut update.
 
-> UI ini dulunya Streamlit (`ui/app.py`), tapi diganti ke FastAPI + HTML/JS statis
-> karena model threading Streamlit (script jalan di background thread terpisah)
-> konflik dengan tamper-protection Norton 360 di sistem ini, menyebabkan crash
-> `python.exe` (Access Violation, WINHTTP.dll). FastAPI/uvicorn jalan di
-> main thread/event loop seperti `vectorization/service.py`, yang sudah terbukti
-> stabil di sistem yang sama.
+> UI ini dulunya Streamlit (`ui/app.py`), lalu sempat jadi HTML/JS statis polos
+> (`ui/static/`, sudah dihapus setelah migrasi ke React), sekarang React + TypeScript
+> + Vite. Streamlit diganti karena model threading-nya (script jalan di background
+> thread terpisah) konflik dengan tamper-protection Norton 360 di sistem ini,
+> menyebabkan crash `python.exe` (Access Violation, WINHTTP.dll). FastAPI/uvicorn
+> jalan di main thread/event loop seperti `vectorization/service.py`, yang sudah
+> terbukti stabil di sistem yang sama — keputusan itu tidak berubah, cuma
+> frontend-nya yang di-upgrade dari HTML/JS statis ke React+TS untuk desain yang
+> lebih matang.
 >
 > `ui/app.py` **tidak dihapus** (disimpan sebagai referensi historis dan bagian
 > dari cerita migrasi teknis), tapi sudah ditandai jelas di docstring-nya sebagai
@@ -176,7 +290,8 @@ link, tanggal terbit) di bawah tiap jawaban.
 | Airflow Webserver             | 8081  |
 | Vectorization bridge (FastAPI)| 8600  |
 | Ollama                        | 11434 |
-| UI (FastAPI)                  | 8502  |
+| UI (FastAPI, production/demo) | 8502  |
+| UI frontend dev server (Vite, opsional) | 5173 |
 
 ## Scraping: seleksi artikel per topic
 
@@ -239,15 +354,43 @@ duplikat).
 
 ## Troubleshooting
 
+- **`Ollama connection refused` / `Failed to connect to Ollama`** saat tanya di UI —
+  Ollama kadang **tidak auto-start** lagi setelah laptop di-restart (meskipun
+  terinstall sebagai service). Cek dulu: `curl http://localhost:11434/api/tags`.
+  Kalau gagal connect, jalankan `ollama serve` manual di terminal terpisah dan
+  **biarkan terminal itu tetap terbuka** selama Anda pakai UI, lalu ulangi `curl`
+  di atas sampai berhasil sebelum mencoba tanya lagi di UI. Lihat juga bagian
+  [Quick start](#a-quick-start--tanya-jawab-saja) langkah 2.
+- **`Could not load model Qdrant/bm25 from any source`** saat tanya di UI — ini
+  **bukan** berarti modelnya belum pernah ter-download. Root cause: fastembed
+  (library yang load model sparse/BM25) untuk model `Qdrant/bm25` **tidak mengecek
+  cache lokal dulu** sebelum mencoba network call ke HuggingFace Hub (ini
+  keterbatasan/bug di fastembed sendiri, bukan di kode project ini) — jadi koneksi
+  internet tetap dibutuhkan minimal untuk metadata check di setiap proses baru,
+  **walaupun model sudah pernah di-download dan ter-cache sebelumnya**. Kalau
+  environment variable `HF_HUB_OFFLINE=1` di-set, network call metadata itu
+  diblokir total → load gagal → muncul error generik ini, terlepas dari cache ada
+  atau tidak. Fix-nya: **jangan set `HF_HUB_OFFLINE=1`**. Ini sudah diperbaiki di
+  `ui/api.py` (dan `ui/app.py` legacy) — baris itu sudah dihapus. Kalau error ini
+  muncul lagi: (a) pastikan Anda tidak menambahkan kembali `HF_HUB_OFFLINE=1` /
+  `TRANSFORMERS_OFFLINE=1` di kode atau di `.env`, dan (b) pastikan ada koneksi
+  internet aktif saat `uvicorn ui.api:app` pertama kali start di sesi itu.
 - **`cuda_available: false`** di `/health` — cek `nvidia-smi` jalan, dan pastikan
   torch yang terinstall adalah build CUDA (`pip show torch` → cek versi ada `+cu`).
-- **Task `vectorize_news` gagal connection error** — pastikan langkah 6 (bridge
-  service) sudah jalan di host sebelum trigger DAG. `host.docker.internal` cuma
-  reachable dari dalam container Docker Desktop, tidak perlu extra config di Windows.
+- **Task `vectorize_news` gagal connection error** — pastikan vectorization bridge
+  service (`uvicorn vectorization.service:app --port 8600`, lihat
+  [Full setup langkah 2](#b-full-setup--scraping-berita-baru)) sudah jalan di host
+  sebelum trigger DAG. `host.docker.internal` cuma reachable dari dalam container
+  Docker Desktop, tidak perlu extra config di Windows.
 - **`newspaper3k` error terkait `lxml.html.clean`** — pastikan `lxml_html_clean`
   ada di requirements (sudah ditambahkan), ini package terpisah sejak lxml 5.x.
 - **Ollama model not found** — jalankan `ollama pull llama3` ulang, atau ganti
   `OLLAMA_MODEL` di `.env` / field model di sidebar UI ke model lain yang sudah di-pull.
+- **Buka `http://localhost:8502` tapi dapat 404 / halaman kosong** — frontend belum
+  di-build. Jalankan `npm install && npm run build` di `ui/frontend/` (lihat bagian
+  Setup dari nol langkah 5), lalu restart/reload `:8502`. Endpoint `/ask` sendiri
+  tetap jalan walau frontend belum di-build (dicek langsung lewat `curl`/Postman
+  kalau perlu debug backend saja).
 - **Port bentrok** — ubah mapping port di `docker-compose.yml` / `.env`.
 
 ## Asumsi teknis (sudah dikonfirmasi)

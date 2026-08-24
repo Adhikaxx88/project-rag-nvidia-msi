@@ -24,8 +24,6 @@ import os
 os.environ["NO_PROXY"] = "*"
 os.environ["HTTP_PROXY"] = ""
 os.environ["HTTPS_PROXY"] = ""
-os.environ["HF_HUB_OFFLINE"] = "1"          # <- baru
-os.environ["TRANSFORMERS_OFFLINE"] = "1"     # <- baru
 
 import sys
 from pathlib import Path
