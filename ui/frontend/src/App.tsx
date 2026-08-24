@@ -7,9 +7,6 @@ import { ResultEntry } from "./components/ResultEntry";
 import { askQuestion } from "./api";
 import type { QueryEntry, TopicFilter } from "./types";
 
-const DEFAULT_TOP_K = 6;
-const DEFAULT_MODEL = "llama3";
-
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -21,8 +18,6 @@ function nowLabel(): string {
 function App() {
   const [entries, setEntries] = useState<QueryEntry[]>([]);
   const [topicFilter, setTopicFilter] = useState<TopicFilter>("");
-  const [topK, setTopK] = useState(DEFAULT_TOP_K);
-  const [model, setModel] = useState(DEFAULT_MODEL);
   const [pending, setPending] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
 
@@ -41,9 +36,7 @@ function App() {
     try {
       const data = await askQuestion({
         question,
-        top_k: topK,
         topic_filter: topicFilter || null,
-        model: model || DEFAULT_MODEL,
       });
       setEntries((prev) =>
         prev.map((e) =>
@@ -69,10 +62,6 @@ function App() {
       <Sidebar
         topicFilter={topicFilter}
         onTopicFilterChange={setTopicFilter}
-        topK={topK}
-        onTopKChange={setTopK}
-        model={model}
-        onModelChange={setModel}
         onReset={() => setEntries([])}
         disabled={pending}
       />

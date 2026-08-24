@@ -35,12 +35,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from common.settings import LLM_TOP_K, OLLAMA_MODEL
+from common.settings import OLLAMA_MODEL
 from llm.rag_pipeline import answer_question
 
 # Hasil `npm run build` di ui/frontend/ (lihat README). Tidak di-generate di sini --
 # harus di-build manual dulu sebelum menjalankan service ini di mode production.
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
+
+# Dikunci di level backend -- tidak boleh diubah lewat request (UI maupun panggilan
+# /ask langsung via curl/API client lain). request.top_k dan request.model diterima
+# di schema Pydantic di bawah cuma untuk kompatibilitas, TAPI nilainya diabaikan
+# sepenuhnya di handler /ask -- lihat ASK_TOP_K dan ASK_MODEL dipakai, bukan field
+# dari request.
+ASK_TOP_K = 8
+ASK_MODEL = OLLAMA_MODEL
 
 app = FastAPI(title="Fed Rate & Macro News RAG UI")
 
@@ -54,9 +62,12 @@ app.add_middleware(
 
 class AskRequest(BaseModel):
     question: str
-    top_k: int = LLM_TOP_K
     topic_filter: Optional[str] = None
-    model: str = OLLAMA_MODEL
+    # top_k dan model diterima di schema supaya request lama/klien lain yang masih
+    # mengirim field ini tidak error validasi -- TAPI nilainya TIDAK PERNAH dipakai
+    # (lihat ASK_TOP_K / ASK_MODEL di atas, dipaksa di handler /ask di bawah).
+    top_k: Optional[int] = None
+    model: Optional[str] = None
 
 
 @app.post("/ask")
@@ -64,16 +75,16 @@ def ask(request: AskRequest):
     try:
         return answer_question(
             request.question,
-            top_k=request.top_k,
+            top_k=ASK_TOP_K,
             topic_filter=request.topic_filter,
-            model=request.model,
+            model=ASK_MODEL,
         )
     except Exception as exc:  # noqa: BLE001
         return {
             "answer": (
                 f"Terjadi error saat memproses pertanyaan: `{exc}`\n\n"
                 "Pastikan Qdrant sudah jalan (`docker compose ps`) dan Ollama sudah aktif "
-                f"dengan model `{request.model}` (`ollama pull {request.model}`)."
+                f"dengan model `{ASK_MODEL}` (`ollama pull {ASK_MODEL}`)."
             ),
             "sources": [],
         }

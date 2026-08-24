@@ -15,9 +15,7 @@ export interface AskResponse {
 
 export interface AskRequestBody {
   question: string;
-  top_k: number;
   topic_filter: string | null;
-  model: string;
 }
 
 export type EntryStatus = "loading" | "done" | "error";
