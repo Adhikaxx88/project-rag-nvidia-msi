@@ -1,16 +1,20 @@
 :root {
-  --bg: #0d1117;
+  --bg: #0b0e14;
   --panel: #10141c;
   --panel-alt: #151a24;
-  --border: #262c3a;
+  --panel-elevated: #171d29;
+  --border: #232938;
+  --border-subtle: rgba(148, 163, 194, 0.08);
   --border-strong: #333a4a;
   --text: #d7dae2;
   --text-dim: #838ba0;
   --text-faint: #5a6175;
-  --accent: #3b82f6;
+  --accent: #4b93f7;
   --accent-dim: #1d3a66;
+  --accent-soft: rgba(75, 147, 247, 0.1);
   --hawkish: #e5484d;
   --dovish: #2f9e5e;
+  --dovish-soft: rgba(47, 158, 94, 0.12);
   --neutral: #c9a227;
   --error: #e5484d;
 
@@ -55,6 +59,12 @@ textarea {
   font-family: inherit;
   font-size: inherit;
   color: inherit;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
 }
 
 .mono {

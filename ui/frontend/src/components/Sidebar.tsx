@@ -1,14 +1,33 @@
 import { RotateCcw } from "lucide-react";
 import type { TopicFilter } from "../types";
 
+export type PipelineStatus = "idle" | "pending" | "error";
+
 interface SidebarProps {
   topicFilter: TopicFilter;
   onTopicFilterChange: (value: TopicFilter) => void;
   onReset: () => void;
   disabled: boolean;
+  queryCount: number;
+  lastQueryAt: string | null;
+  status: PipelineStatus;
 }
 
-export function Sidebar({ topicFilter, onTopicFilterChange, onReset, disabled }: SidebarProps) {
+const STATUS_LABEL: Record<PipelineStatus, string> = {
+  idle: "Ready",
+  pending: "Querying…",
+  error: "Last query failed",
+};
+
+export function Sidebar({
+  topicFilter,
+  onTopicFilterChange,
+  onReset,
+  disabled,
+  queryCount,
+  lastQueryAt,
+  status,
+}: SidebarProps) {
   return (
     <aside className="sidebar">
       <h2 className="sidebar-title">Parameters</h2>
@@ -30,6 +49,37 @@ export function Sidebar({ topicFilter, onTopicFilterChange, onReset, disabled }:
         <RotateCcw size={13} strokeWidth={2} />
         Reset session
       </button>
+
+      <div className="sidebar-section">
+        <h3 className="sidebar-section-title">Session</h3>
+        <div className="stat-row">
+          <span className="stat-label">Queries asked</span>
+          <span className="stat-value mono">{queryCount}</span>
+        </div>
+        <div className="stat-row">
+          <span className="stat-label">Last query</span>
+          <span className="stat-value mono">{lastQueryAt ?? "—"}</span>
+        </div>
+      </div>
+
+      <div className="sidebar-section">
+        <h3 className="sidebar-section-title">Retrieval engine</h3>
+        <div className="stat-row">
+          <span className="stat-label">Method</span>
+          <span className="stat-value">Dense + BM25 (RRF)</span>
+        </div>
+        <div className="stat-row">
+          <span className="stat-label">Passages / query</span>
+          <span className="stat-value mono">Top 8</span>
+        </div>
+        <div className="stat-row">
+          <span className="stat-label">Status</span>
+          <span className="stat-value">
+            <span className={`status-dot-inline dot-${status}`} />
+            {STATUS_LABEL[status]}
+          </span>
+        </div>
+      </div>
 
       <div className="sidebar-note">
         Answers are generated only from news already ingested into Qdrant via the
