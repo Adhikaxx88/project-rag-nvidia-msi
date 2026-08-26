@@ -265,6 +265,26 @@ input[type="range"] {
   box-shadow: 0 0 0 3px var(--dovish-soft);
 }
 
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  background: var(--panel-elevated);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 /* ---------- Terminal (query/result log) ---------- */
 
 .terminal {

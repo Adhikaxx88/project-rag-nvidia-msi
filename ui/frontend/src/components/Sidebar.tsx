@@ -60,18 +60,6 @@ export function Sidebar({
           <span className="stat-label">Last query</span>
           <span className="stat-value mono">{lastQueryAt ?? "—"}</span>
         </div>
-      </div>
-
-      <div className="sidebar-section">
-        <h3 className="sidebar-section-title">Retrieval engine</h3>
-        <div className="stat-row">
-          <span className="stat-label">Method</span>
-          <span className="stat-value">Dense + BM25 (RRF)</span>
-        </div>
-        <div className="stat-row">
-          <span className="stat-label">Passages / query</span>
-          <span className="stat-value mono">Top 8</span>
-        </div>
         <div className="stat-row">
           <span className="stat-label">Status</span>
           <span className="stat-value">
@@ -82,8 +70,8 @@ export function Sidebar({
       </div>
 
       <div className="sidebar-note">
-        Answers are generated only from news already ingested into Qdrant via the
-        Airflow pipeline. Every claim is cited to its source article.
+        Answers are generated only from news articles already collected by our
+        automated pipeline. Every claim is cited to its source article.
       </div>
     </aside>
   );

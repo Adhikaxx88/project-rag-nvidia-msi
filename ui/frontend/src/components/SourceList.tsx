@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import type { Source } from "../types";
 
 function formatDate(published: string | null): string {
@@ -16,12 +16,7 @@ export function SourceList({ sources }: { sources: Source[] }) {
   return (
     <div className="source-list">
       <button className="source-toggle" onClick={() => setOpen((v) => !v)} type="button">
-        <ChevronDown
-          size={13}
-          strokeWidth={2}
-          style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 120ms" }}
-        />
-        {sources.length} source{sources.length !== 1 ? "s" : ""}
+        {open ? "Hide" : "Show"} {sources.length} source{sources.length !== 1 ? "s" : ""}
       </button>
 
       {open && (

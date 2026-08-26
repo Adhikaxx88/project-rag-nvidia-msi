@@ -8,7 +8,6 @@ export function ResultEntry({ entry }: { entry: QueryEntry }) {
   return (
     <div className="entry">
       <div className="entry-query">
-        <span className="prompt-marker mono">&gt;</span>
         <span className="entry-question">{entry.question}</span>
         <span className="mono entry-time">{entry.askedAt}</span>
       </div>

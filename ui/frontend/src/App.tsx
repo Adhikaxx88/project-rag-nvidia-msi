@@ -23,11 +23,22 @@ function nowLabel(): string {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+type Theme = "light" | "dark";
+
 function App() {
   const [entries, setEntries] = useState<QueryEntry[]>([]);
   const [topicFilter, setTopicFilter] = useState<TopicFilter>("");
   const [pending, setPending] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    const stored = localStorage.getItem("theme");
+    return stored === "dark" ? "dark" : "light";
+  });
   const terminalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     terminalRef.current?.scrollTo({ top: terminalRef.current.scrollHeight });
@@ -81,7 +92,7 @@ function App() {
       />
 
       <main className="main">
-        <Header />
+        <Header theme={theme} onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))} />
 
         <div className="terminal" ref={terminalRef}>
           {entries.length === 0 ? (

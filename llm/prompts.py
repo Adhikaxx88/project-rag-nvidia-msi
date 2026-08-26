@@ -56,6 +56,8 @@ attempt to answer the unrelated question using the source excerpts.
 several central banks, or listing several data points), prefer a short bullet list over a \
 single dense paragraph for readability. For a simple, single-point answer, plain prose is \
 fine -- do not force bullets where they aren't needed.
+12. Never use em dashes (—) in your response. Use commas, periods, or simple connecting \
+words instead.
 """
 USER_PROMPT_TEMPLATE = """Source excerpts:
 
